@@ -1,43 +1,1627 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cube Timer</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and ReactDOM via CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Chart.js and react-chartjs-2 via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-chartjs-2@3.0.0/dist/react-chartjs-2.min.js"></script>
+    <script src="https://cdn.cubing.net/v0/js/scramble-display" type="module"></script>
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <style>
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        
+        /* Custom animation for the PB banner */
+        @keyframes slideIn {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.5s ease-out forwards;
+        }
+
+        /* Custom gradient for the PB timer text */
+        .pb-gradient {
+            background-image: linear-gradient(45deg, #f0f8ff, #ffd700, #ff8c00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        /* Custom glow effect for the PB timer text */
+        .pb-glow {
+            text-shadow: 0 0 5px #ffd700, 0 0 10px #ffd700, 0 0 20px #ff8c00, 0 0 40px #ff8c00;
+        }
+
+
+        /* Add this to your existing styles */
+          
+
+    </style>
+</head>
+<body>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
 
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-  </body>
+
+    
+    <script type="text/babel">
+      const { useState } = React;
+
+
+
+
+
+
+      
+        // Reusable Modal component with outside click handler
+        const Modal = ({ children, onClose }) => {
+            const modalRef = React.useRef(null);
+
+            React.useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (modalRef.current && !modalRef.current.contains(event.target)) {
+                        onClose();
+                    }
+                };
+
+                document.addEventListener('mousedown', handleClickOutside);
+                return () => {
+                    document.removeEventListener('mousedown', handleClickOutside);
+                };
+            }, [onClose]);
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div ref={modalRef}>
+                        {children}
+                    </div>
+                </div>
+            );
+        };
+
+        const handleNewPB = () => {
+          setShowPBBanner(true);
+          setTimeout(() => {
+            setShowPBBanner(false);
+          }, 3000); // ✅ This is the right version
+        };
+
+   
+
+        const MiniHistogramChart = ({ data }) => {
+  const chartRef = React.useRef(null);
+  const chartInstance = React.useRef(null);
+
+  React.useEffect(() => {
+    if (chartRef.current) {
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+      }
+
+      const ctx = chartRef.current.getContext("2d");
+
+      chartInstance.current = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: data.map(d => d.label),
+          datasets: [{
+            label: "Time Distribution",
+            data: data.map(d => d.count),
+            backgroundColor: "#3B82F6",
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          scales: {
+            x: {
+              ticks: { color: "#94a3b8" },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { color: "#94a3b8" },
+              grid: { color: "#1e293b" }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          },
+          responsive: true,
+          maintainAspectRatio: false,
+        }
+      });
+    }
+  }, [data]);
+
+  return (
+    <div style={{ height: "200px" }}>
+      <canvas ref={chartRef}></canvas>
+    </div>
+  );
+};
+
+
+
+
+
+        const TimeDistributionCard = ({ solves }) => {
+          let data = [];
+            try {
+              data = getTimeDistribution(solves);
+            } catch (err) {
+              console.error("Failed to generate time distribution:", err);
+              data = [];
+            }
+
+          // Show fallback if no solves or empty data
+          if (!solves || solves.length === 0 || data.length === 0) {
+            return (
+              <div className="bg-slate-800 p-4 rounded-xl shadow text-white">
+                <h3 className="text-lg font-semibold mb-2">Time Distribution</h3>
+                <p className="text-slate-500 text-center text-sm">No solves recorded yet.</p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="bg-slate-800 p-4 rounded-xl shadow text-white">
+              <h3 className="text-lg font-semibold mb-2">Time Distribution</h3>
+              <MiniHistogramChart data={data} />
+            </div>
+          );
+        };
+
+
+
+
+
+
+
+        const DailySolvesModal = ({ solves, onClose }) => {
+  const dailyStats = getDailyStats(solves);
+  const [selectedDate, setSelectedDate] = React.useState(null);
+  
+  // Get solves for selected date
+  const selectedDateSolves = selectedDate 
+  ? solves.filter(solve => {
+      const solveDate = new Date(solve.id || solve.date);
+      if (isNaN(solveDate.getTime())) return false;
+      
+      const compareDate = new Date(selectedDate);
+      if (isNaN(compareDate.getTime())) return false;
+      
+      return (
+        solveDate.getFullYear() === compareDate.getFullYear() &&
+        solveDate.getMonth() === compareDate.getMonth() &&
+        solveDate.getDate() === compareDate.getDate()
+      );
+    })
+  : [];
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="bg-slate-900 p-6 rounded-xl shadow-lg w-full max-w-6xl min-w-[960px] text-white">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">Daily Solve History</h2>
+          <button 
+            onClick={onClose} 
+            className="text-slate-400 hover:text-white text-3xl transition-colors"
+          >
+            &times;
+          </button>
+        </div>
+        
+        {dailyStats.length > 0 ? (
+          <div className="flex flex-col md:flex-row gap-6 h-[70vh] min-w-[720px] md:min-w-[960px]">
+            {/* Days List */}
+            <div className="w-full md:w-1/3 bg-slate-800 rounded-lg p-4 overflow-y-auto">
+              <h3 className="text-lg font-semibold mb-4 text-slate-300">Days with Solves</h3>
+              <div className="space-y-2">
+                {dailyStats.map((day, i) => (
+                  <div 
+                    key={i} 
+                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                      selectedDate === day.date 
+                        ? 'bg-blue-600 text-white' 
+                        : 'hover:bg-slate-700'
+                    }`}
+                    onClick={() => setSelectedDate(day.date)}
+                  >
+                    <span className="font-medium">{day.date}</span>
+                    <span className="bg-slate-900 text-blue-400 px-3 py-1 rounded-full text-sm font-mono">
+                      {day.count} {day.count === 1 ? 'solve' : 'solves'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Solves List */}
+            <div className="w-full md:w-2/3 bg-slate-800 rounded-lg p-4 overflow-y-auto">
+              {selectedDate ? (
+                <>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-slate-300">
+                      Solves on {selectedDate}
+                    </h3>
+                    <span className="text-sm text-slate-400">
+                      {selectedDateSolves.length} total
+                    </span>
+                  </div>
+                  
+                  {selectedDateSolves.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedDateSolves.map((solve, i) => (
+                        <div 
+                          key={i} 
+                          className="bg-slate-900 p-4 rounded-lg border-l-4 border-blue-500"
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono text-xl font-bold">
+                              {solve.time.toFixed(2)}s
+                            </span>
+                            <span className="text-sm text-slate-400">
+                              {new Date(solve.id || solve.date).toLocaleTimeString([], {
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          <p
+                            className="mt-2 text-sm text-slate-400 font-mono break-words"
+                            style={{ whiteSpace: 'break-spaces' }}
+                          >
+                            {solve.scramble}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-slate-400">No solves found for this date</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="h-full flex-1 min-w-[600px] flex flex-col items-center justify-center text-center">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className="h-12 w-12 text-slate-500 mb-3" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={1.5} 
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
+                    />
+                  </svg>
+                  <p className="text-slate-400 mb-4">Select a date to view solves</p>
+                  <p className="text-sm text-slate-500">Click on any date from the list</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="h-64 flex flex-col items-center justify-center text-center">
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              className="h-16 w-16 text-slate-500 mb-4" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={1.5} 
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+              />
+            </svg>
+            <h3 className="text-xl font-medium text-slate-300 mb-2">No solve data available</h3>
+            <p className="text-slate-500">Complete some solves to see your history</p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};
+
+
+
+const getDailyStats = (solves) => {
+  if (!solves || solves.length === 0) return [];
+  
+  const dailyStats = {};
+  
+  solves.forEach(solve => {
+    try {
+      const dateObj = new Date(solve.id || solve.date);
+      if (isNaN(dateObj.getTime())) return;
+      
+      // Use consistent date format
+      const dateStr = dateObj.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      
+      dailyStats[dateStr] = (dailyStats[dateStr] || 0) + 1;
+    } catch (error) {
+      console.error('Error processing solve:', error, solve);
+    }
+  });
+
+  return Object.entries(dailyStats)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+};
+
+
+
+const TimeDistributionModal = ({ solves, onClose }) => {
+  let data = [];
+  try {
+    data = getTimeDistribution(solves, 1); // Use 1-second bins
+  } catch (err) {
+    console.error("Error in getTimeDistribution:", err);
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="bg-slate-900 p-8 rounded-xl shadow-lg w-full max-w-xl text-white">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">Detailed Time Distribution</h2>
+          <button
+            onClick={onClose}
+            className="text-red-400 hover:text-red-500 font-bold text-3xl ml-4"
+          >
+            &times;
+          </button>
+        </div>
+        {data.length > 0 ? (
+          <HistogramChart data={data} />
+        ) : (
+          <p className="text-slate-400 text-center">No data available.</p>
+        )}
+      </div>
+    </Modal>
+  );
+};
+
+
+
+
+
+        // Helper function to generate a new scramble
+        const generateScramble = (length = 20) => {
+        const moves = ["R", "L", "U", "D", "F", "B"];
+        const modifiers = ["", "'", "2"];
+        const axisMap = {
+          R: 'x', L: 'x',
+          U: 'y', D: 'y',
+          F: 'z', B: 'z',
+        };
+
+        const scramble = [];
+        let lastAxis = '';
+
+        for (let i = 0; i < length; i++) {
+          let move, axis;
+          do {
+            move = moves[Math.floor(Math.random() * moves.length)];
+            axis = axisMap[move];
+          } while (axis === lastAxis); // avoid same axis consecutively
+
+          lastAxis = axis;
+          const modifier = modifiers[Math.floor(Math.random() * modifiers.length)];
+          scramble.push(move + modifier);
+        }
+
+        return scramble.join("   "); // extra spaces for readability
+      };
+
+
+        
+        // Helper function to calculate the average with the new custom logic
+        const getAverage = (solvesArray, n) => {
+          try {
+            if (solvesArray.length < n) {
+              return { value: 'N/A', solves: [], excludedSolves: [] };
+            }
+            
+            // Slice the last 'n' solves for the average calculation
+            const times = solvesArray.slice(0, n).map(solve => solve.time);
+            const sortedTimes = [...times].sort((a, b) => a - b);
+            const allSolvesInWindow = solvesArray.slice(0, n);
+
+            let timesToAverage;
+            let excludedTimes = [];
+
+            if (n === 3) {
+              // For Ao3, simply average all three solves
+              timesToAverage = sortedTimes;
+            } else if (n === 5 || n === 12) {
+              // For Ao5 and Ao12, remove the best and worst times
+              timesToAverage = sortedTimes.slice(1, sortedTimes.length - 1);
+              excludedTimes = [sortedTimes[0], sortedTimes[sortedTimes.length - 1]];
+            } else {
+              // For larger averages, shave off 5% from the best and worst times
+              const trimCount = Math.floor(n * 0.05);
+              if (n - 2 * trimCount < 1) { // Ensure there are still solves to average
+                  return { value: 'N/A', solves: [], excludedSolves: [] };
+              }
+              timesToAverage = sortedTimes.slice(trimCount, sortedTimes.length - trimCount);
+              excludedTimes = [...sortedTimes.slice(0, trimCount), ...sortedTimes.slice(sortedTimes.length - trimCount)];
+            }
+
+            if (timesToAverage.length === 0) {
+              return { value: 'N/A', solves: [], excludedSolves: [] };
+            }
+
+            const sum = timesToAverage.reduce((acc, curr) => acc + curr, 0);
+            const avg = (sum / timesToAverage.length).toFixed(2);
+            
+            const excludedSolves = allSolvesInWindow.filter(s => excludedTimes.includes(s.time));
+
+            return { value: avg, solves: allSolvesInWindow, excludedSolves };
+          } catch (error) {
+            console.error("Error calculating average:", error);
+            return { value: 'Error', solves: [], excludedSolves: [] };
+          }
+        };
+
+
+
+        const getTimeDistribution = (solves) => {
+            if (!solves || solves.length === 0) return [];
+
+            // ⛑️ Filter out any solve with invalid or missing time
+            const validTimes = solves.map(s => s.time).filter(t => typeof t === 'number' && !isNaN(t));
+
+                if (validTimes.length === 0) return [];
+
+                const maxTime = Math.max(...validTimes);
+                const bucketSize = 5;
+                const bucketCount = Math.ceil(maxTime / bucketSize) || 1;
+
+                const buckets = Array(bucketCount).fill(0).map((_, i) => ({
+                  min: i * bucketSize,
+                  max: (i + 1) * bucketSize,
+                  count: 0
+                }));
+
+                solves.forEach(solve => {
+                  const t = solve.time;
+                  if (typeof t === 'number' && !isNaN(t)) {
+                    const bucketIndex = Math.floor(t / bucketSize);
+                    if (bucketIndex < buckets.length) {
+                      buckets[bucketIndex].count++;
+                    }
+                  }
+                });
+
+                return buckets.map(bucket => ({
+                  min: bucket.min,
+                  max: bucket.max,
+                  label: `${bucket.min}-${bucket.max}s`,
+                  count: bucket.count
+                })).sort((a, b) => a.min - b.min);
+              };
+
+
+
+
+        // Modal component to show PB details
+        const PBDetailsModal = ({ pbDetails, onClose }) => {
+            if (!pbDetails) return null;
+
+            const { type, solves, excludedSolves, value } = pbDetails;
+
+            return (
+                <Modal onClose={onClose}>
+                    <div className="bg-slate-900 p-8 rounded-xl shadow-lg w-full max-w-2xl text-white">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold">Personal Best: {type} ({value}s)</h2>
+                            <button onClick={onClose} className="text-red-400 hover:text-red-500 font-bold text-3xl">&times;</button>
+                        </div>
+                        <div className="max-h-96 overflow-y-auto no-scrollbar">
+                            <ul className="space-y-2">
+                                {solves.map(solve => {
+                                    const isExcluded = excludedSolves.some(exSolve => exSolve.id === solve.id);
+                                    return (
+                                        <li key={solve.id} className="bg-slate-800 p-2 rounded-lg text-sm">
+                                            <div className="flex items-center space-x-2">
+                                                <span className="font-semibold text-white">
+                                                    {isExcluded ? `(${solve.time.toFixed(2)}s)` : `${solve.time.toFixed(2)}s`}
+                                                </span>
+                                                <span className="text-slate-400">on {new Date(solve.id).toLocaleString()}</span>
+                                            </div>
+                                            <p className="mt-1 text-xs font-mono text-slate-500 break-words">{solve.scramble}</p>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    </div>
+                </Modal>
+            );
+        };
+
+
+
+
+        const HistogramChart = ({ data }) => {
+  const chartRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (chartRef.current && data.length > 0) {
+      if (chartRef.current.chart) chartRef.current.chart.destroy();
+
+      chartRef.current.chart = new Chart(chartRef.current.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: data.map(d => d.label),
+          datasets: [{
+            data: data.map(d => d.count),
+            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const item = data[context.dataIndex];
+                  return `${item.label}: ${item.count} solves`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              ticks: { color: '#ccc', beginAtZero: true },
+              grid: { color: 'rgba(255,255,255,0.1)' }
+            },
+            x: {
+              ticks: { color: '#ccc' },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+  }, [data]);
+
+  return (
+    <div className="w-full" style={{ height: '200px' }}>
+      <canvas ref={chartRef} />
+    </div>
+  );
+};
+
+
+        
+        // New Chart Component for Time Progression
+        const TimeProgressionGraph = ({ solves, size = 'small' }) => {
+    const chartRef = React.useRef(null);
+    
+
+    const HistogramChart = ({ data }) => {
+      const chartRef = React.useRef(null);
+
+      React.useEffect(() => {
+        if (chartRef.current && data.length > 0) {
+          if (chartRef.current.chart) chartRef.current.chart.destroy();
+
+          new Chart(chartRef.current.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: data.map(d => d.label),
+              datasets: [{
+                data: data.map(d => d.count),
+                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                y: { 
+                  ticks: { color: '#ccc', beginAtZero: true },
+                  grid: { color: 'rgba(255,255,255,0.1)' }
+                },
+                x: { 
+                  ticks: { color: '#ccc' },
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+        }
+      }, [data]);
+
+      return (
+        <div className="w-full" style={{ height: '200px' }}>
+          <canvas ref={chartRef} />
+        </div>
+      );
+    };
+
+
+    // Sort solves chronologically for the graph
+    const chronologicalSolves = [...solves].sort((a, b) => a.id - b.id);
+
+    React.useEffect(() => {
+        if (chartRef.current && chronologicalSolves.length > 0) {
+            // Destroy existing chart instance to prevent memory leaks
+            if (chartRef.current.chart) {
+                chartRef.current.chart.destroy();
+            }
+
+            // Prepare data and options for the chart
+            const data = {
+                labels: chronologicalSolves.map((_, index) => `#${index + 1}`),
+                datasets: [{
+                    label: 'Solve Time (s)',
+                    data: chronologicalSolves.map(solve => solve.time),
+                    fill: false,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    pointRadius: 2,
+                    pointBackgroundColor: 'rgb(75, 192, 192)',
+                    hoverRadius: 5,
+                    hoverBorderWidth: 2,
+                    pointHoverBackgroundColor: 'rgb(255, 99, 132)',
+                    pointHoverBorderColor: 'rgb(255, 99, 132)',
+                }],
+            };
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        title: { display: true, text: 'Time (s)', color: '#fff' },
+                        ticks: { color: '#ccc' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    },
+                    x: {
+                        title: { display: true, text: 'Solve Number', color: '#fff' },
+                        ticks: { 
+                            color: '#ccc',
+                            autoSkip: true,
+                            maxTicksLimit: size === 'small' ? 5 : 20, // Show fewer labels in small graph
+                            maxRotation: 0, // Prevent label rotation
+                            minRotation: 0  // Prevent label rotation
+                        },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    },
+                },
+                plugins: {
+                    legend: { display: false },
+                    // ... (keep existing tooltip config) ...
+                }
+            };
+
+            // Create new chart instance
+            const ctx = chartRef.current.getContext('2d');
+            chartRef.current.chart = new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: options,
+            });
+        }
+    }, [solves]);
+            // Adjust dimensions based on size prop
+            const chartHeight = size === 'large' ? '500px' : '200px';
+            const chartWidth = size === 'large' ? '800px' : '100%';
+
+            return solves.length > 0 ? (
+                <div style={{ 
+                    position: 'relative', 
+                    width: chartWidth, 
+                    height: chartHeight,
+                    margin: '0 auto'
+                }}>
+                    <canvas ref={chartRef} />
+                </div>
+            ) : (
+                <div className="text-center text-slate-400 mt-8">
+                    No solves recorded yet.
+                </div>
+            );
+        };
+
+
+
+        const GraphModal = ({ solves, onClose }) => {
+          return (
+              <Modal onClose={onClose}>
+                  <div className="bg-slate-900 p-8 rounded-xl shadow-lg w-full max-w-6xl text-white">
+                      <div className="flex justify-between items-center mb-4">
+                          <h2 className="text-2xl font-bold">Time Progression Graph</h2>
+                          <button onClick={onClose} className="text-red-400 hover:text-red-500 font-bold text-3xl">&times;</button>
+                      </div>
+                      <div className="w-full" style={{ height: '70vh' }}>
+                          <TimeProgressionGraph solves={solves} size="large" />
+                      </div>
+                  </div>
+              </Modal>
+          );
+      };
+
+        const App = () => {
+          
+          const [showPBBanner, setShowPBBanner] = React.useState(false);
+          const [showDailyModal, setShowDailyModal] = React.useState(false);
+          const [showTimeModal, setShowTimeModal] = useState(false);
+          const [startTime, setStartTime] = React.useState(null);
+
+
+          const [time, setTime] = React.useState(0);
+          const [scramble, setScramble] = React.useState('');
+          const [state, setState] = React.useState('idle'); // idle, ready, timing
+          const [isHoldingLongEnough, setIsHoldingLongEnough] = React.useState(false);
+          
+          const [sessions, setSessions] = React.useState({});
+          const [currentSession, setCurrentSession] = React.useState('default');
+          const [showSessionModal, setShowSessionModal] = React.useState(false);
+          const [newSessionName, setNewSessionName] = React.useState('');
+          const [editingSessionName, setEditingSessionName] = React.useState(null); // New state for renaming
+          const [tempNewName, setTempNewName] = React.useState(''); // New state for rename input
+          
+          const [visibleScrambleId, setVisibleScrambleId] = React.useState(null);
+          const [showDeleteConfirmId, setShowDeleteConfirmId] = React.useState(null);
+          const [pbDetails, setPbDetails] = React.useState(null);
+          const [sortOrder, setSortOrder] = React.useState('newest'); // 'newest' or 'best'
+          const [showGraphModal, setShowGraphModal] = React.useState(false);
+
+          const formatTotalTime = (totalSeconds) => {
+          const days = Math.floor(totalSeconds / 86400);
+          const hours = Math.floor((totalSeconds % 86400) / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const seconds = Math.floor(totalSeconds % 60);
+
+          return `${days}d ${hours}h ${minutes}m ${seconds}`;
+        };
+
+          // State for PB animation
+          const [showShatter, setShowShatter] = React.useState(false);
+
+          // New state for consecutive streak and sub-X rates
+          const [subNThreshold, setSubNThreshold] = React.useState(10);
+          const [subXThreshold, setSubXThreshold] = React.useState(10);
+          const [consecutiveSubN, setConsecutiveSubN] = React.useState(0);
+          const [overallSubXRate, setOverallSubXRate] = React.useState('N/A');
+          const [dailySubXRate, setDailySubXRate] = React.useState('N/A');
+
+          const timerIntervalRef = React.useRef(null);
+          const startTimeRef = React.useRef(null);
+          const holdTimerTimeoutRef = React.useRef(null);
+
+          // State for tracking best times and personal bests
+          const [personalBestId, setPersonalBestId] = React.useState(null);
+          const [pastPBIds, setPastPBIds] = React.useState([]);
+          const [pbs, setPbs] = React.useState({
+            single: 'N/A',
+            ao3: 'N/A',
+            ao5: 'N/A',
+            ao12: 'N/A',
+            ao100: 'N/A',
+            ao1000: 'N/A',
+            ao10000: 'N/A'
+          });
+          
+          const solves = sessions[currentSession] || [];
+
+
+          
+
+          // Helper function to calculate all personal bests
+          const calculateAllPBs = (solvesArray) => {
+              if (solvesArray.length === 0) {
+                  return {
+                    single: { value: 'N/A', solves: [], excludedSolves: [] },
+                    ao3: { value: 'N/A', solves: [], excludedSolves: [] },
+                    ao5: { value: 'N/A', solves: [], excludedSolves: [] },
+                    ao12: { value: 'N/A', solves: [], excludedSolves: [] },
+                    ao100: { value: 'N/A', solves: [], excludedSolves: [] },
+                    ao1000: { value: 'N/A', solves: [], excludedSolves: [] },
+                    ao10000: { value: 'N/A', solves: [], excludedSolves: [] }
+                  };
+              }
+              
+              const findBestAverage = (n) => {
+                  if (solvesArray.length < n) return { value: 'N/A', solves: [], excludedSolves: [] };
+                  let bestAvg = Infinity;
+                  let bestSolves = [];
+                  let bestExcludedSolves = [];
+
+                  // Sort solves in chronological order for average calculation
+                  const chronologicalSolves = [...solvesArray].sort((a,b) => a.id - b.id);
+
+                  for (let i = 0; i <= chronologicalSolves.length - n; i++) {
+                      const windowSolves = chronologicalSolves.slice(i, i + n);
+                      const avgResult = getAverage(windowSolves, n);
+                      const avg = parseFloat(avgResult.value);
+                      if (avgResult.value !== 'N/A' && avg < bestAvg) {
+                          bestAvg = avg;
+                          bestSolves = windowSolves;
+                          bestExcludedSolves = avgResult.excludedSolves;
+                      }
+                  }
+                  return bestAvg === Infinity ? { value: 'N/A', solves: [], excludedSolves: [] } : { value: bestAvg.toFixed(2), solves: bestSolves, excludedSolves: bestExcludedSolves };
+              };
+
+              const bestSingleSolve = solvesArray.reduce((minSolve, currentSolve) => 
+                (minSolve === null || currentSolve.time < minSolve.time) ? currentSolve : minSolve, null
+              );
+              
+              const singlePB = {
+                  value: bestSingleSolve ? bestSingleSolve.time.toFixed(2) : 'N/A',
+                  solves: bestSingleSolve ? [bestSingleSolve] : [],
+                  excludedSolves: []
+              };
+
+              return {
+                single: singlePB,
+                ao3: findBestAverage(3),
+                ao5: findBestAverage(5),
+                ao12: findBestAverage(12),
+                ao100: findBestAverage(100),
+                ao1000: findBestAverage(1000),
+                ao10000: findBestAverage(10000)
+              };
+          };
+
+          // Function to calculate consecutive sub-N streak
+          const calculateConsecutiveSubN = (solvesArray, n) => {
+              let streak = 0;
+              for (const solve of solvesArray) {
+                  if (solve.time < n) {
+                      streak++;
+                  } else {
+                      break;
+                  }
+              }
+              return streak;
+          };
+
+          // Function to calculate sub-X rate
+          const calculateSubXRate = (solvesArray, x) => {
+              if (solvesArray.length === 0) return 'N/A';
+              const subXCount = solvesArray.filter(solve => solve.time < x).length;
+              return ((subXCount / solvesArray.length) * 100).toFixed(2) + '%';
+          };
+          
+          // Load sessions from local storage on initial render
+          React.useEffect(() => {
+            try {
+              let savedSessions = JSON.parse(localStorage.getItem('csTimerSessions'));
+              let savedCurrentSession = localStorage.getItem('csTimerCurrentSession');
+
+              // Ensure savedSessions is a valid object and contains a 'default' session
+              if (!savedSessions || Object.keys(savedSessions).length === 0) {
+                  savedSessions = { 'default': [] };
+              } else if (!savedSessions['default']) {
+                  savedSessions['default'] = [];
+              }
+
+              // Ensure the current session exists; otherwise, switch to 'default'
+              if (!savedCurrentSession || !savedSessions[savedCurrentSession]) {
+                  savedCurrentSession = 'default';
+              }
+
+              const savedSubN = localStorage.getItem('subNThreshold');
+              const savedSubX = localStorage.getItem('subXThreshold');
+
+              setSessions(savedSessions);
+              setCurrentSession(savedCurrentSession);
+              if (savedSubN) setSubNThreshold(Number(savedSubN));
+              if (savedSubX) setSubXThreshold(Number(savedSubX));
+              
+            } catch (error) {
+              console.error("Failed to load sessions or thresholds from local storage:", error);
+              // Fallback to a clean state on error
+              setSessions({'default': []});
+              setCurrentSession('default');
+            }
+            setScramble(generateScramble());
+          }, []);
+
+          // Save sessions to local storage and recalculate PBs whenever the sessions state changes
+          React.useEffect(() => {
+            try {
+              localStorage.setItem('csTimerSessions', JSON.stringify(sessions));
+              localStorage.setItem('csTimerCurrentSession', currentSession);
+              localStorage.setItem('subNThreshold', subNThreshold);
+              localStorage.setItem('subXThreshold', subXThreshold);
+            } catch (error) {
+              console.error("Failed to save sessions to local storage:", error);
+            }
+
+            const currentSolves = sessions[currentSession] || [];
+            if (currentSolves.length > 0) {
+                let overallBestId = null;
+                const pastPBs = [];
+
+                // Find the overall best time
+                const minTimeSolve = currentSolves.reduce((minSolve, currentSolve) => 
+                    (minSolve === null || currentSolve.time < minSolve.time) ? currentSolve : minSolve, null
+                );
+                if (minTimeSolve) {
+                    overallBestId = minTimeSolve.id;
+                }
+                
+                // Find all solves that were PBs at the time of their recording
+                const chronologicalSolves = [...currentSolves].reverse();
+                let bestTimeSoFar = Infinity;
+
+                chronologicalSolves.forEach(solve => {
+                    if (solve.time < bestTimeSoFar) {
+                        bestTimeSoFar = solve.time;
+                        // If this solve is a PB but not the *current* PB, it's a past PB
+                        if (solve.id !== overallBestId) {
+                            pastPBs.push(solve.id);
+                        }
+                    }
+                });
+
+                setPersonalBestId(overallBestId);
+                setPastPBIds(pastPBs);
+                setPbs(calculateAllPBs(currentSolves)); // Calculate all PBs and update state
+
+                // Calculate and set new stats
+                setConsecutiveSubN(calculateConsecutiveSubN(currentSolves, subNThreshold));
+                setOverallSubXRate(calculateSubXRate(currentSolves, subXThreshold));
+                const today = new Date().toDateString();
+                const dailySolves = currentSolves.filter(solve => new Date(solve.date).toDateString() === today);
+                setDailySubXRate(calculateSubXRate(dailySolves, subXThreshold));
+
+            } else {
+                setPersonalBestId(null);
+                setPastPBIds([]);
+                setPbs(calculateAllPBs([]));
+                setConsecutiveSubN(0);
+                setOverallSubXRate('N/A');
+                setDailySubXRate('N/A');
+            }
+          }, [sessions, currentSession, subNThreshold, subXThreshold]);
+
+          // Timer logic
+          React.useEffect(() => {
+            if (state === 'timing') {
+              console.log('Timer started.');
+              timerIntervalRef.current = setInterval(() => {
+                setTime(((Date.now() - startTimeRef.current) / 1000));
+              }, 10);
+            }
+            return () => {
+              if (timerIntervalRef.current) {
+                console.log('Timer stopped.');
+                clearInterval(timerIntervalRef.current);
+              }
+            };
+          }, [state]);
+
+          // Handle keyboard events
+          React.useEffect(() => {
+  const handleKeyDown = (e) => {
+    if (document.activeElement.tagName === 'INPUT') {
+      return;
+    }
+
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (state === 'idle') {
+        setState('ready');
+        holdTimerTimeoutRef.current = setTimeout(() => {
+          setIsHoldingLongEnough(true);
+        }, 300);
+      }
+    }
+
+    if (e.code === 'Escape') {
+      if (state === 'ready') {
+        clearTimeout(holdTimerTimeoutRef.current);
+        setIsHoldingLongEnough(false);
+        setState('idle');
+        setTime(0);
+      }
+    }
+
+    if (e.key === 'Enter' && showDeleteConfirmId) {
+      confirmDelete();
+    }
+  };
+
+  const handleKeyUp = (e) => {
+    if (document.activeElement.tagName === 'INPUT') {
+      return;
+    }
+
+    e.preventDefault();
+    if (state === 'ready') {
+      clearTimeout(holdTimerTimeoutRef.current);
+      if (isHoldingLongEnough) {
+        startTimer();
+      } else {
+        setState('idle');
+        setTime(0);
+      }
+      setIsHoldingLongEnough(false);
+    } else if (state === 'timing') {
+      stopTimer();
+    }
+  };
+
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+
+  return () => {
+    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keyup', handleKeyUp);
+  };
+}, [state, showDeleteConfirmId, isHoldingLongEnough]);
+
+
+
+          const startTimer = () => {
+            try {
+              startTimeRef.current = Date.now();
+              setState('timing');
+            } catch (error) {
+              console.error("Error starting timer:", error);
+            }
+          };
+
+          const stopTimer = () => {
+            try {
+              const finalTime = ((Date.now() - startTimeRef.current) / 1000);
+              const newSolve = {
+                id: Date.now(),
+                time: parseFloat(finalTime),
+                scramble: scramble,
+                date: new Date().toISOString()
+              };
+              
+              // Find current best time
+              const currentBestTime = solves.length > 0 
+                ? Math.min(...solves.map(s => s.time)) 
+                : Infinity;
+              
+              // Update solves
+              setSessions(prevSessions => ({
+                ...prevSessions,
+                [currentSession]: [newSolve, ...(prevSessions[currentSession] || [])]
+              }));
+              
+              setScramble(generateScramble());
+              setTime(parseFloat(finalTime));
+              setState('idle');
+
+              // Check if this is a new PB and show banner if it is
+              if (newSolve.time < currentBestTime) {
+                handleNewPB(); // This will trigger the banner with fade effect
+              }
+              
+              console.log('Solve saved:', newSolve);
+            } catch (error) {
+              console.error("Error stopping timer or saving solve:", error);
+            }
+          };
+
+         
+
+          const handleDeleteClick = (id) => {
+            setShowDeleteConfirmId(id);
+          };
+
+          const confirmDelete = () => {
+            setSessions(prevSessions => ({
+                ...prevSessions,
+                [currentSession]: (prevSessions[currentSession] || []).filter(solve => solve.id !== showDeleteConfirmId)
+            }));
+            setShowDeleteConfirmId(null);
+          };
+
+          const cancelDelete = () => {
+            setShowDeleteConfirmId(null);
+          };
+
+          const handleShowPBDetails = (type) => {
+            setPbDetails({
+                type: type.toUpperCase(),
+                ...pbs[type]
+            });
+          };
+
+          const handleClosePBDetails = () => {
+            setPbDetails(null);
+          };
+
+          const handleOpenGraphModal = () => {
+            setShowGraphModal(true);
+          };
+
+          const handleCloseGraphModal = () => {
+            setShowGraphModal(false);
+          };
+          
+          const handleAddSession = () => {
+              if (newSessionName && !sessions[newSessionName]) {
+                  setSessions(prevSessions => ({
+                      ...prevSessions,
+                      [newSessionName]: []
+                  }));
+                  setCurrentSession(newSessionName);
+                  setNewSessionName('');
+                  setShowSessionModal(false);
+              }
+          };
+          
+          const handleDeleteSession = (sessionName) => {
+              if (sessionName !== 'default' && window.confirm(`Are you sure you want to delete session "${sessionName}"? All solves in this session will be lost.`)) {
+                  const newSessions = { ...sessions };
+                  delete newSessions[sessionName];
+                  setSessions(newSessions);
+                  if (currentSession === sessionName) {
+                      setCurrentSession('default');
+                  }
+              }
+          };
+
+          const handleRenameSession = (oldName, newName) => {
+              if (!newName || newName === oldName) {
+                  setEditingSessionName(null);
+                  return;
+              }
+              if (sessions[newName]) {
+                  alert("A session with this name already exists.");
+                  return;
+              }
+
+              const newSessions = { ...sessions };
+              newSessions[newName] = newSessions[oldName];
+              delete newSessions[oldName];
+
+              setSessions(newSessions);
+              if (currentSession === oldName) {
+                  setCurrentSession(newName);
+              }
+              setEditingSessionName(null);
+              setTempNewName('');
+          };
+
+          const getSortedSolves = () => {
+            if (sortOrder === 'best') {
+              return [...solves].sort((a, b) => a.time - b.time);
+            }
+            return solves; // Default to newest
+          };
+
+          let timerColorClass = 'text-white';
+          let instructionText = '';
+          let displayedTime = time.toFixed(2);
+          
+          if (state === 'ready' && !isHoldingLongEnough) {
+            timerColorClass = 'text-red-500';
+            instructionText = 'Hold SPACE to start.';
+            displayedTime = "0.00";
+          } else if (state === 'ready' && isHoldingLongEnough) {
+            timerColorClass = 'text-green-500';
+            instructionText = 'Release to start';
+            displayedTime = "0.00";
+          } else if (state === 'timing') {
+            timerColorClass = 'text-blue-500';
+          } else {
+            // idle state
+            instructionText = 'Press SPACE to start.';
+if (showPBBanner) {
+  timerColorClass = 'pb-gradient pb-glow';
+} else {
+  timerColorClass = 'text-white';
+}
+          }
+
+          const totalSeconds = solves.reduce((acc, solve) => acc + solve.time, 0);
+          const totalTime = formatTotalTime(totalSeconds);
+
+          const sortedSolves = getSortedSolves();
+
+          const shouldShowFullUI = state === 'idle' || (state === 'ready' && !isHoldingLongEnough);
+
+          return (
+            <div className="flex justify-center items-center h-screen bg-slate-800 p-4 font-inter text-white">
+              {/* Main UI */}
+              {shouldShowFullUI && (
+                <div className="flex w-full max-w-8xl space-x-6 h-full items-stretch">
+                  {/* Left Sidebar */}
+                  <div className="bg-slate-900 p-6 rounded-xl shadow-xl flex flex-col w-56">
+                    <div className="flex-none">
+                      <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-2xl font-semibold">Past Solves</h3>
+                          <button 
+                              onClick={() => {
+                                  setShowSessionModal(true);
+                                  setEditingSessionName(null);
+                              }}
+                              className="text-sm px-2 py-1 rounded-full bg-slate-700 hover:bg-slate-600 transition-colors"
+                          >
+                              Sessions
+                          </button>
+                      </div>
+                      <div className="text-base mb-4 text-center">
+                          <p className="font-semibold">Current Session: <span className="text-blue-400">{currentSession}</span></p>
+                          <p className="font-semibold">Total Solves: {solves.length}</p>
+                          <p className="font-semibold">Total Time: {totalTime}s</p>
+                      </div>
+                      {/* Personal Bests Section */}
+                      <div className="text-base mb-4 text-center bg-slate-800 p-2 rounded-lg">
+                          <p className="font-bold text-xl mb-2">Personal Bests</p>
+                          {Object.entries(pbs).map(([type, pb]) => (
+                              <div key={type} className="hover:bg-slate-700 rounded-md cursor-pointer" onClick={() => handleShowPBDetails(type)}>
+                                  <p>{type.charAt(0).toUpperCase() + type.slice(1)}: <span className="font-semibold">{pb.value}s</span></p>
+                              </div>
+                          ))}
+                      </div>
+                      <div className="flex-none text-center mb-2">
+                          <button
+                              onClick={() => setSortOrder(sortOrder === 'newest' ? 'best' : 'newest')}
+                              className="text-sm w-full px-2 py-1 rounded-full bg-slate-700 hover:bg-slate-600 transition-colors"
+                          >
+                              {sortOrder === 'newest' ? 'Sort by Speed' : 'Sort by Newest'}
+                          </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto no-scrollbar">
+                      <ul className="text-sm font-mono space-y-2">
+                        {sortedSolves.map((solve) => {
+                          const isCurrentPB = solve.id === personalBestId;
+                          const isPastPB = pastPBIds.includes(solve.id);
+
+                          let highlightClass = '';
+                          let badge = null;
+
+                          if (isCurrentPB) {
+                              highlightClass = 'text-green-400 font-bold';
+                              badge = <span className="text-xs px-2 py-1 rounded-full bg-green-600 text-white">PB</span>;
+                          } else if (isPastPB) {
+                              highlightClass = 'text-sky-300 font-semibold';
+                              badge = <span className="text-xs px-2 py-1 rounded-full bg-sky-600 text-white">PB</span>;
+                          }
+
+                          const originalIndex = solves.findIndex(s => s.id === solve.id);
+                          const solveDisplayIndex = solves.length - originalIndex;
+
+                          return (
+                            <li
+                              key={solve.id}
+                              className={`p-1 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors duration-150 ${highlightClass}`}
+                            >
+                              <div className="flex items-center"
+                                onClick={() => setVisibleScrambleId(visibleScrambleId === solve.id ? null : solve.id)}>
+                                <span>#{solveDisplayIndex}: {solve.time.toFixed(2)}s</span>
+                                <div className="flex items-center space-x-2 ml-auto">
+                                  {badge}
+                                  <button
+                                    className="text-red-400 hover:text-red-500 font-bold text-sm"
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(solve.id); }}
+                                  >
+                                    x
+                                  </button>
+                                </div>
+                              </div>
+                              {visibleScrambleId === solve.id && (
+                                <div className="mt-2 text-xs text-slate-400 break-words">
+                                  <p>{solve.date}</p>
+                                  <p>{solve.scramble}</p>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Main Content Area (centered) */}
+                  <div className="bg-slate-900 p-8 rounded-xl shadow-xl flex-1 flex flex-col justify-center items-center relative">
+                    {/* New PB Banner */}
+                    {/* New PB Banner */}
+                      {showPBBanner && (
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 text-center w-full max-w-lg">
+                          <div className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 p-4 rounded-b-xl shadow-xl animate-slide-in">
+
+                            <p className="text-4xl font-bold text-slate-900 drop-shadow-lg">NEW PERSONAL BEST!</p>
+                          </div>
+                        </div>
+                      )}
+
+                    <div className="flex-none text-3xl font-bold mb-8 text-center">Cube Timer</div>
+                    <div className="flex-1 flex flex-col justify-center items-center">
+                      <div className="flex flex-col items-center mb-8">
+                        <p className="text-5xl tracking-wide whitespace-pre-wrap break-words text-center mb-4">{scramble}</p>
+                        <button
+                          onClick={() => setScramble(generateScramble())}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                        >
+                          New Scramble
+                        </button>
+                      </div>
+                      <h2 className={`text-[10rem] md:text-[14rem] leading-none font-bold transition-colors duration-200 ${timerColorClass}`}>
+                        {displayedTime}
+                      </h2>
+                      <div className="h-8 flex items-center justify-center">
+                        <p className="text-2xl font-medium">{instructionText}</p>
+                      </div>
+                      <div className="flex flex-col items-center mt-4 space-y-4">
+                        <div className="flex justify-center space-x-10">
+                          <p className={`text-6xl font-semibold`}>Ao5: {getAverage(solves, 5).value}</p>
+                          <p className={`text-6xl font-semibold`}>Ao12: {getAverage(solves, 12).value}</p>
+                        </div>
+                        <div className="flex flex-wrap justify-center space-x-4 text-xl text-slate-400">
+                          <p>Ao100: <span className="text-3xl font-semibold">{getAverage(solves, 100).value}</span></p>
+                          <p>Ao1000: <span className="text-3xl font-semibold">{getAverage(solves, 1000).value}</span></p>
+                          <p>Ao10000: <span className="text-3xl font-semibold">{getAverage(solves, 10000).value}</span></p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-none text-right text-base text-slate-400 absolute bottom-4 right-4">
+                      <p>Last solve: {solves.length > 0 ? solves[0].time.toFixed(2) : 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  {/* Right Sidebar for Advanced Stats */}
+                  <div className="bg-slate-900 p-6 rounded-xl shadow-xl flex flex-col w-64 max-h-full overflow-y-auto no-scrollbar">
+                      <h4 className="text-2xl font-bold text-center mb-4">Advanced Stats</h4>
+                      <div className="space-y-6">
+                          {/* Consecutive sub-N section */}
+                          <div className="flex flex-col items-center p-2 bg-slate-800 rounded-lg text-sm">
+                              <div className="flex items-center space-x-2">
+                                  <label htmlFor="subN" className="text-sm text-slate-400 font-normal">Consecutive sub-</label>
+                                  <input
+                                      id="subN"
+                                      type="number"
+                                      value={subNThreshold}
+                                      onChange={(e) => setSubNThreshold(Number(e.target.value))}
+                                      className="w-16 bg-slate-700 text-white text-center rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                  />
+                                  <span className="text-sm text-slate-400 font-normal">s</span>
+                              </div>
+                              <div className="mt-2 text-4xl font-bold text-blue-400">
+                                  {consecutiveSubN}
+                              </div>
+                          </div>
+
+                          {/* Sub-X Rate section */}
+                          <div className="flex flex-col items-center p-2 bg-slate-800 rounded-lg text-sm">
+                              <div className="flex items-center space-x-2">
+                                  <label htmlFor="subX" className="text-sm text-slate-400 font-normal">Sub-</label>
+                                  <input
+                                      id="subX"
+                                      type="number"
+                                      value={subXThreshold}
+                                      onChange={(e) => setSubXThreshold(Number(e.target.value))}
+                                      className="w-16 bg-slate-700 text-white text-center rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                  />
+                                  <span className="text-sm text-slate-400 font-normal">s Rate</span>
+                              </div>
+                              <div className="mt-2 space-y-1 text-sm text-center">
+                                  <div className="font-semibold text-white">Overall: <span className="text-lg">{overallSubXRate}</span></div>
+                                  <div className="font-semibold text-white">Daily: <span className="text-lg">{dailySubXRate}</span></div>
+                              </div>
+                          </div>
+
+                          {/* Time Progression Graph section */}
+                          <div 
+                              onClick={handleOpenGraphModal} 
+                              className="flex flex-col items-center p-4 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors"
+                          >
+                              <h5 className="text-xl font-bold mb-2">Time Progression</h5>
+                              <TimeProgressionGraph solves={solves} />
+                          </div>
+
+                          {/* Time Distribution */}
+                          <div
+  className="bg-slate-800 p-4 rounded-lg cursor-pointer hover:bg-slate-700 transition"
+  onClick={() => setShowTimeModal(true)}
+>
+  <h5 className="text-lg font-bold mb-2">Time Distribution</h5>
+  <TimeDistributionCard solves={solves} />
+</div>
+
+{/* Daily Solves */}
+<div
+  onClick={() => setShowDailyModal(true)}
+  className="bg-slate-800 p-4 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors"
+>
+  <h5 className="text-lg font-bold mb-2">Daily Solves</h5>
+  <p className="text-slate-300 text-sm text-center">Click to view solve history</p>
+</div>
+
+
+
+                          
+                      </div>
+                  </div>
+
+                </div>
+
+                
+              )}
+
+              {/* Simplified view for when the spacebar is held for > 0.3s or timing */}
+              {!shouldShowFullUI && (
+                <div className="flex flex-col justify-center items-center">
+                    <h2 className={`text-[14rem] md:text-[20rem] leading-none font-bold transition-colors duration-200 ${timerColorClass}`}>
+                        {displayedTime}
+                    </h2>
+                </div>
+              )}
+
+              {/* Delete Confirmation Modal */}
+              {showDeleteConfirmId && (
+                <Modal onClose={cancelDelete}>
+                  <div className="bg-slate-900 p-8 rounded-xl shadow-lg text-center">
+                    <p className="text-xl mb-4">Are you sure you want to delete this solve?</p>
+                    <div className="flex justify-center space-x-4">
+                      <button
+                        onClick={confirmDelete}
+                        className="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg text-white font-semibold"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={cancelDelete}
+                        className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </Modal>
+              )}
+              
+              {/* Session Management Modal */}
+              {showSessionModal && (
+                <Modal onClose={() => setShowSessionModal(false)}>
+                    <div className="bg-slate-900 p-8 rounded-xl shadow-lg w-full max-w-md text-white">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold">Manage Sessions</h2>
+                            <button onClick={() => setShowSessionModal(false)} className="text-red-400 hover:text-red-500 font-bold text-3xl">&times;</button>
+                        </div>
+                        
+                        <div className="mb-4">
+                            <h3 className="text-xl font-semibold mb-2">Current Session</h3>
+                            <p className="text-xl font-bold text-blue-400 mb-4">{currentSession}</p>
+                        </div>
+
+                        <div className="mb-4">
+                            <h3 className="text-xl font-semibold mb-2">Create New Session</h3>
+                            <div className="flex space-x-2">
+                                <input
+                                    type="text"
+                                    value={newSessionName}
+                                    onChange={(e) => setNewSessionName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleAddSession();
+                                    }}
+                                    placeholder="Enter session name"
+                                    className="flex-1 px-4 py-2 bg-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                                />
+                                <button
+                                    onClick={handleAddSession}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-semibold"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mb-4 max-h-48 overflow-y-auto no-scrollbar">
+                            <h3 className="text-xl font-semibold mb-2">All Sessions</h3>
+                            <ul className="space-y-2">
+                                {Object.keys(sessions).map(sessionName => (
+                                    <li 
+                                        key={sessionName} 
+                                        className={`flex justify-between items-center p-2 rounded-lg cursor-pointer transition-colors ${currentSession === sessionName ? 'bg-blue-800' : 'bg-slate-800 hover:bg-slate-700'}`}
+                                    >
+                                        {editingSessionName === sessionName ? (
+                                            <div className="flex-1 flex items-center space-x-2">
+                                                <input
+                                                    type="text"
+                                                    value={tempNewName}
+                                                    onChange={(e) => setTempNewName(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRenameSession(sessionName, tempNewName);
+                                                        if (e.key === 'Escape') setEditingSessionName(null);
+                                                    }}
+                                                    className="flex-1 px-2 py-1 bg-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                />
+                                                <button onClick={() => handleRenameSession(sessionName, tempNewName)} className="text-green-400 hover:text-green-500 font-bold">✔</button>
+                                                <button onClick={() => setEditingSessionName(null)} className="text-red-400 hover:text-red-500 font-bold">&times;</button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex justify-between items-center" onClick={() => setCurrentSession(sessionName)}>
+                                                <span className="font-medium">{sessionName}</span>
+                                                <div className="flex items-center space-x-2">
+                                                    <button 
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setEditingSessionName(sessionName);
+                                                            setTempNewName(sessionName);
+                                                        }}
+                                                        className="text-sm text-blue-400 hover:text-blue-500"
+                                                    >
+                                                        Rename
+                                                    </button>
+                                                    {sessionName !== 'default' && (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteSession(sessionName); }}
+                                                            className="text-red-400 hover:text-red-500 font-bold text-lg"
+                                                        >
+                                                            &times;
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </Modal>
+              )}
+
+              <PBDetailsModal pbDetails={pbDetails} onClose={handleClosePBDetails} />
+              {showGraphModal && <GraphModal solves={solves} onClose={handleCloseGraphModal} />}
+              {showDailyModal && <DailySolvesModal solves={solves} onClose={() => setShowDailyModal(false)} />}
+                {showTimeModal && (<TimeDistributionModal solves={solves} onClose={() => setShowTimeModal(false)}
+  />
+)}
+              </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    <script type="module" src="https://cdn.cubing.net/js/scramble-display"></script>
+</body>
 </html>
