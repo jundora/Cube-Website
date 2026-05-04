@@ -785,7 +785,7 @@ const TimeDistributionModal = ({ solves, onClose }) => {
       };
 
         const App = () => {
-          
+          const [showHowToUse, setShowHowToUse] = React.useState(false);
           const [showPBBanner, setShowPBBanner] = React.useState(false);
           const [showDailyModal, setShowDailyModal] = React.useState(false);
           const [showTimeModal, setShowTimeModal] = useState(false);
@@ -1271,20 +1271,33 @@ if (showPBBanner) {
               {shouldShowFullUI && (
                 <div className="flex w-full max-w-8xl space-x-6 h-full items-stretch">
                   {/* Left Sidebar */}
-                  <div className="bg-slate-900 p-6 rounded-xl shadow-xl flex flex-col w-56">
-                    <div className="flex-none">
-                      <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-2xl font-semibold">Past Solves</h3>
-                          <button 
-                              onClick={() => {
-                                  setShowSessionModal(true);
-                                  setEditingSessionName(null);
-                              }}
-                              className="text-sm px-2 py-1 rounded-full bg-slate-700 hover:bg-slate-600 transition-colors"
-                          >
-                              Sessions
-                          </button>
-                      </div>
+                  <div className="bg-slate-900 p-6 rounded-xl shadow-xl flex flex-col w-64"> {/* Increased width slightly for better fit */}
+    <div className="flex-none">
+        
+        {/* 1. Button sits on its own line at the top */}
+        <button 
+            onClick={() => setShowHowToUse(true)}
+            className="w-full mb-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-400 font-bold rounded-lg transition-all flex items-center justify-center space-x-2 shadow-sm"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>How to Use</span>
+        </button>
+
+        {/* 2. Heading and Sessions button sit below it */}
+        <div className="flex items-center justify-between mb-4">
+            <h3 className="text-2xl font-semibold text-white">Past Solves</h3>
+            <button 
+                onClick={() => {
+                    setShowSessionModal(true);
+                    setEditingSessionName(null);
+                }}
+                className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+            >
+                Sessions
+            </button>
+        </div>
                       <div className="text-base mb-4 text-center">
                           <p className="font-semibold">Current Session: <span className="text-blue-400">{currentSession}</span></p>
                           <p className="font-semibold">Total Solves: {solves.length}</p>
@@ -1600,15 +1613,92 @@ if (showPBBanner) {
                                                     )}
                                                 </div>
                                             </div>
+                                            
                                         )}
                                     </li>
                                 ))}
                             </ul>
                         </div>
+
+                        
+
+
                     </div>
                 </Modal>
               )}
 
+              {showHowToUse && (
+  <Modal onClose={() => setShowHowToUse(false)}>
+    <div className="bg-slate-900 p-8 rounded-xl shadow-2xl w-full max-w-2xl text-white border border-slate-700">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+        <h2 className="text-3xl font-bold text-blue-400">Timer Guide & Features</h2>
+        <button 
+          onClick={() => setShowHowToUse(false)} 
+          className="text-slate-400 hover:text-white text-3xl transition-colors"
+        >
+          &times;
+        </button>
+      </div>
+
+      {/* Content Body */}
+      <div className="space-y-6 max-h-[65vh] overflow-y-auto no-scrollbar pr-2">
+        
+        {/* Controls Section */}
+        <section>
+          <h3 className="text-xl font-semibold mb-3 flex items-center text-blue-300">
+            <span className="mr-2">⌨️</span> Controls
+          </h3>
+          <div className="bg-slate-800 p-4 rounded-lg space-y-2 border border-slate-700">
+            <p><span className="font-bold text-green-400">Start:</span> Hold <span className="bg-slate-700 px-2 py-0.5 rounded text-sm font-mono">Space</span> until the numbers turn green (0.3s), then release.</p>
+            <p><span className="font-bold text-red-400">Stop:</span> Press any key while timing to record your result.</p>
+            <p><span className="font-bold text-slate-400">Cancel:</span> Press <span className="bg-slate-700 px-2 py-0.5 rounded text-sm font-mono">Esc</span> while holding Space to abort the start.</p>
+          </div>
+        </section>
+
+        {/* Features Grid */}
+        <section>
+          <h3 className="text-xl font-semibold mb-3 text-blue-300">Advanced Features</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+              <h4 className="font-bold text-white mb-1">📁 Smart Sessions</h4>
+              <p className="text-sm text-slate-400">Create custom categories for different cubes. Everything is saved automatically to your local storage.</p>
+            </div>
+            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+              <h4 className="font-bold text-white mb-1">📊 Outlier Trimming</h4>
+              <p className="text-sm text-slate-400">Ao5 and Ao12 averages automatically exclude your fastest and slowest times to match WCA standards.</p>
+            </div>
+            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+              <h4 className="font-bold text-white mb-1">📈 Advanced Stats</h4>
+              <p className="text-sm text-slate-400">Track Sub-X consistency rates and view time progression graphs to visualize your improvement.</p>
+            </div>
+            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+              <h4 className="font-bold text-white mb-1">🔍 Solve Details</h4>
+              <p className="text-sm text-slate-400">Click any past solve to see the exact scramble used and the timestamp of when it happened.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Tip Section */}
+        <section className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg">
+          <p className="text-sm text-blue-200">
+            <strong>💡 Pro Tip:</strong> Click on your Personal Best stats (like Ao5) in the sidebar to see exactly which solves were used in that average!
+          </p>
+        </section>
+      </div>
+
+      {/* Footer Button */}
+      <button 
+        className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition-all transform active:scale-95"
+        onClick={() => setShowHowToUse(false)}
+      >
+        Got it!
+      </button>
+    </div>
+  </Modal>
+)}
+              
+              
               <PBDetailsModal pbDetails={pbDetails} onClose={handleClosePBDetails} />
               {showGraphModal && <GraphModal solves={solves} onClose={handleCloseGraphModal} />}
               {showDailyModal && <DailySolvesModal solves={solves} onClose={() => setShowDailyModal(false)} />}
