@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-chartjs-2@3.0.0/dist/react-chartjs-2.min.js"></script>
     <script src="https://cdn.cubing.net/v0/js/scramble-display" type="module"></script>
+    <script src="https://unpkg.com/cube-solver/dist/bundle.js"></script>
 
     <style>
         /* Hide scrollbar for Chrome, Safari and Opera */
@@ -56,8 +57,24 @@
         }
 
 
-        /* Add this to your existing styles */
-          
+        /* Light mode overrides */
+        html.light-mode .bg-slate-900 { background-color: #dde4ec !important; }
+        html.light-mode .bg-slate-800 { background-color: #cdd6e0 !important; }
+        html.light-mode .bg-slate-700 { background-color: #b8c4d1 !important; }
+        html.light-mode .text-white { color: #0f172a !important; }
+        html.light-mode .text-slate-400 { color: #475569 !important; }
+        html.light-mode .text-slate-300 { color: #334155 !important; }
+        html.light-mode .text-slate-500 { color: #64748b !important; }
+        html.light-mode .border-slate-700 { border-color: #cbd5e1 !important; }
+        html.light-mode .hover\:bg-slate-700:hover { background-color: #b8c4d1 !important; }
+        html.light-mode .hover\:bg-slate-600:hover { background-color: #a8b6c4 !important; }
+        html.light-mode .bg-blue-800 { background-color: #1d4ed8 !important; }
+        html.light-mode .bg-blue-900\/20 { background-color: rgba(219,234,254,0.5) !important; }
+        html.light-mode .border-blue-500\/30 { border-color: rgba(59,130,246,0.5) !important; }
+        html.light-mode .text-blue-200 { color: #1d4ed8 !important; }
+
+        /* Toggle switch */
+        .toggle-thumb { transition: transform 0.2s; }
 
     </style>
 </head>
@@ -102,12 +119,6 @@
             );
         };
 
-        const handleNewPB = () => {
-          setShowPBBanner(true);
-          setTimeout(() => {
-            setShowPBBanner(false);
-          }, 3000); // ✅ This is the right version
-        };
 
    
 
@@ -448,15 +459,21 @@ const TimeDistributionModal = ({ solves, onClose }) => {
 
 
         
+        const getEffectiveTime = (solve) => {
+          if (solve.penalty === 'DNF') return Infinity;
+          if (solve.penalty === '+2') return solve.time + 2;
+          return solve.time;
+        };
+
         // Helper function to calculate the average with the new custom logic
         const getAverage = (solvesArray, n) => {
           try {
             if (solvesArray.length < n) {
               return { value: 'N/A', solves: [], excludedSolves: [] };
             }
-            
+
             // Slice the last 'n' solves for the average calculation
-            const times = solvesArray.slice(0, n).map(solve => solve.time);
+            const times = solvesArray.slice(0, n).map(solve => getEffectiveTime(solve));
             const sortedTimes = [...times].sort((a, b) => a - b);
             const allSolvesInWindow = solvesArray.slice(0, n);
 
@@ -464,16 +481,13 @@ const TimeDistributionModal = ({ solves, onClose }) => {
             let excludedTimes = [];
 
             if (n === 3) {
-              // For Ao3, simply average all three solves
               timesToAverage = sortedTimes;
             } else if (n === 5 || n === 12) {
-              // For Ao5 and Ao12, remove the best and worst times
               timesToAverage = sortedTimes.slice(1, sortedTimes.length - 1);
               excludedTimes = [sortedTimes[0], sortedTimes[sortedTimes.length - 1]];
             } else {
-              // For larger averages, shave off 5% from the best and worst times
               const trimCount = Math.floor(n * 0.05);
-              if (n - 2 * trimCount < 1) { // Ensure there are still solves to average
+              if (n - 2 * trimCount < 1) {
                   return { value: 'N/A', solves: [], excludedSolves: [] };
               }
               timesToAverage = sortedTimes.slice(trimCount, sortedTimes.length - trimCount);
@@ -484,10 +498,15 @@ const TimeDistributionModal = ({ solves, onClose }) => {
               return { value: 'N/A', solves: [], excludedSolves: [] };
             }
 
+            // Any remaining DNF in the window means a DNF average
+            if (timesToAverage.some(t => t === Infinity)) {
+              return { value: 'DNF', solves: allSolvesInWindow, excludedSolves: [] };
+            }
+
             const sum = timesToAverage.reduce((acc, curr) => acc + curr, 0);
             const avg = (sum / timesToAverage.length).toFixed(2);
-            
-            const excludedSolves = allSolvesInWindow.filter(s => excludedTimes.includes(s.time));
+
+            const excludedSolves = allSolvesInWindow.filter(s => excludedTimes.includes(getEffectiveTime(s)));
 
             return { value: avg, solves: allSolvesInWindow, excludedSolves };
           } catch (error) {
@@ -633,81 +652,68 @@ const TimeDistributionModal = ({ solves, onClose }) => {
 
         
         // New Chart Component for Time Progression
-        const TimeProgressionGraph = ({ solves, size = 'small' }) => {
+        const TimeProgressionGraph = ({ solves, size = 'small', isDark = true }) => {
     const chartRef = React.useRef(null);
-    
 
-    const HistogramChart = ({ data }) => {
-      const chartRef = React.useRef(null);
-
-      React.useEffect(() => {
-        if (chartRef.current && data.length > 0) {
-          if (chartRef.current.chart) chartRef.current.chart.destroy();
-
-          new Chart(chartRef.current.getContext('2d'), {
-            type: 'bar',
-            data: {
-              labels: data.map(d => d.label),
-              datasets: [{
-                data: data.map(d => d.count),
-                backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                borderColor: 'rgba(59, 130, 246, 1)',
-                borderWidth: 1
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-              scales: {
-                y: { 
-                  ticks: { color: '#ccc', beginAtZero: true },
-                  grid: { color: 'rgba(255,255,255,0.1)' }
-                },
-                x: { 
-                  ticks: { color: '#ccc' },
-                  grid: { display: false }
-                }
-              }
-            }
-          });
-        }
-      }, [data]);
-
-      return (
-        <div className="w-full" style={{ height: '200px' }}>
-          <canvas ref={chartRef} />
-        </div>
-      );
-    };
-
-
-    // Sort solves chronologically for the graph
     const chronologicalSolves = [...solves].sort((a, b) => a.id - b.id);
+
+    // Rolling average helpers (trim best+worst for n>=5)
+    const rollingAvg = (arr, n) => arr.map((_, i) => {
+      if (i < n - 1) return null;
+      const w = arr.slice(i - n + 1, i + 1).map(s => s.time);
+      const sorted = [...w].sort((a, b) => a - b);
+      const trimmed = n <= 3 ? sorted : sorted.slice(1, sorted.length - 1);
+      return +(trimmed.reduce((a, b) => a + b, 0) / trimmed.length).toFixed(2);
+    });
+
+    const rollingAo5  = rollingAvg(chronologicalSolves, 5);
+    const rollingAo12 = rollingAvg(chronologicalSolves, 12);
 
     React.useEffect(() => {
         if (chartRef.current && chronologicalSolves.length > 0) {
-            // Destroy existing chart instance to prevent memory leaks
-            if (chartRef.current.chart) {
-                chartRef.current.chart.destroy();
-            }
+            if (chartRef.current.chart) chartRef.current.chart.destroy();
 
-            // Prepare data and options for the chart
+            const textColor = isDark ? '#ccc' : '#334155';
+            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+            const titleColor = isDark ? '#fff' : '#0f172a';
+
             const data = {
-                labels: chronologicalSolves.map((_, index) => `#${index + 1}`),
-                datasets: [{
-                    label: 'Solve Time (s)',
-                    data: chronologicalSolves.map(solve => solve.time),
+                labels: chronologicalSolves.map((_, i) => `#${i + 1}`),
+                datasets: [
+                  {
+                    label: 'Time',
+                    data: chronologicalSolves.map(s => s.time),
                     fill: false,
-                    borderColor: 'rgb(75, 192, 192)',
+                    borderColor: 'rgb(75,192,192)',
+                    borderWidth: 1.5,
                     tension: 0.1,
                     pointRadius: 2,
-                    pointBackgroundColor: 'rgb(75, 192, 192)',
+                    pointBackgroundColor: 'rgb(75,192,192)',
                     hoverRadius: 5,
-                    hoverBorderWidth: 2,
-                    pointHoverBackgroundColor: 'rgb(255, 99, 132)',
-                    pointHoverBorderColor: 'rgb(255, 99, 132)',
-                }],
+                    pointHoverBackgroundColor: 'rgb(255,99,132)',
+                    pointHoverBorderColor: 'rgb(255,99,132)',
+                  },
+                  {
+                    label: 'Ao5',
+                    data: rollingAo5,
+                    fill: false,
+                    borderColor: 'rgba(251,146,60,0.9)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    spanGaps: false,
+                  },
+                  {
+                    label: 'Ao12',
+                    data: rollingAo12,
+                    fill: false,
+                    borderColor: 'rgba(167,139,250,0.9)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    spanGaps: false,
+                  },
+                ],
             };
 
             const options = {
@@ -715,60 +721,51 @@ const TimeDistributionModal = ({ solves, onClose }) => {
                 maintainAspectRatio: false,
                 scales: {
                     y: {
-                        title: { display: true, text: 'Time (s)', color: '#fff' },
-                        ticks: { color: '#ccc' },
-                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        title: { display: true, text: 'Time (s)', color: titleColor },
+                        ticks: { color: textColor },
+                        grid: { color: gridColor },
                     },
                     x: {
-                        title: { display: true, text: 'Solve Number', color: '#fff' },
-                        ticks: { 
-                            color: '#ccc',
+                        title: { display: true, text: 'Solve Number', color: titleColor },
+                        ticks: {
+                            color: textColor,
                             autoSkip: true,
-                            maxTicksLimit: size === 'small' ? 5 : 20, // Show fewer labels in small graph
-                            maxRotation: 0, // Prevent label rotation
-                            minRotation: 0  // Prevent label rotation
+                            maxTicksLimit: size === 'small' ? 5 : 20,
+                            maxRotation: 0,
+                            minRotation: 0
                         },
-                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        grid: { color: gridColor },
                     },
                 },
                 plugins: {
-                    legend: { display: false },
-                    // ... (keep existing tooltip config) ...
+                    legend: {
+                        display: true,
+                        labels: { color: textColor, boxWidth: 10, font: { size: 10 } }
+                    },
                 }
             };
 
-            // Create new chart instance
-            const ctx = chartRef.current.getContext('2d');
-            chartRef.current.chart = new Chart(ctx, {
-                type: 'line',
-                data: data,
-                options: options,
+            chartRef.current.chart = new Chart(chartRef.current.getContext('2d'), {
+                type: 'line', data, options,
             });
         }
-    }, [solves]);
-            // Adjust dimensions based on size prop
-            const chartHeight = size === 'large' ? '500px' : '200px';
-            const chartWidth = size === 'large' ? '800px' : '100%';
+    }, [solves, isDark]);
 
-            return solves.length > 0 ? (
-                <div style={{ 
-                    position: 'relative', 
-                    width: chartWidth, 
-                    height: chartHeight,
-                    margin: '0 auto'
-                }}>
-                    <canvas ref={chartRef} />
-                </div>
-            ) : (
-                <div className="text-center text-slate-400 mt-8">
-                    No solves recorded yet.
-                </div>
-            );
-        };
+    const chartHeight = size === 'large' ? '500px' : '200px';
+    const chartWidth  = size === 'large' ? '800px' : '100%';
+
+    return solves.length > 0 ? (
+        <div style={{ position: 'relative', width: chartWidth, height: chartHeight, margin: '0 auto' }}>
+            <canvas ref={chartRef} />
+        </div>
+    ) : (
+        <div className="text-center text-slate-400 mt-8">No solves recorded yet.</div>
+    );
+};
 
 
 
-        const GraphModal = ({ solves, onClose }) => {
+        const GraphModal = ({ solves, onClose, isDark }) => {
           return (
               <Modal onClose={onClose}>
                   <div className="bg-slate-900 p-8 rounded-xl shadow-lg w-full max-w-6xl text-white">
@@ -777,7 +774,7 @@ const TimeDistributionModal = ({ solves, onClose }) => {
                           <button onClick={onClose} className="text-red-400 hover:text-red-500 font-bold text-3xl">&times;</button>
                       </div>
                       <div className="w-full" style={{ height: '70vh' }}>
-                          <TimeProgressionGraph solves={solves} size="large" />
+                          <TimeProgressionGraph solves={solves} size="large" isDark={isDark} />
                       </div>
                   </div>
               </Modal>
@@ -810,6 +807,31 @@ const TimeDistributionModal = ({ solves, onClose }) => {
           const [sortOrder, setSortOrder] = React.useState('newest'); // 'newest' or 'best'
           const [showGraphModal, setShowGraphModal] = React.useState(false);
 
+          // Theme
+          const [isDarkMode, setIsDarkMode] = React.useState(true);
+
+          // Inspection timer
+          const [inspectionEnabled, setInspectionEnabled] = React.useState(false);
+          const [inspectionDuration, setInspectionDuration] = React.useState(15);
+          const [inspectionTimeLeft, setInspectionTimeLeft] = React.useState(null);
+          const inspectionIntervalRef = React.useRef(null);
+          const inspectionPenaltyRef = React.useRef(null);
+
+          const playBeep = React.useCallback((frequency = 880, duration = 0.15) => {
+            try {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.frequency.value = frequency;
+              gain.gain.setValueAtTime(0.4, ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+              osc.start(ctx.currentTime);
+              osc.stop(ctx.currentTime + duration);
+            } catch (e) {}
+          }, []);
+
           const formatTotalTime = (totalSeconds) => {
           const days = Math.floor(totalSeconds / 86400);
           const hours = Math.floor((totalSeconds % 86400) / 3600);
@@ -821,6 +843,79 @@ const TimeDistributionModal = ({ solves, onClose }) => {
 
           // State for PB animation
           const [showShatter, setShowShatter] = React.useState(false);
+
+          const [showPenaltyButtons, setShowPenaltyButtons] = React.useState(false);
+          const scrambleDisplayRef = React.useRef(null);
+          const [xcrossSolutions, setXcrossSolutions] = React.useState([]);
+          const [xcrossLoading, setXcrossLoading] = React.useState(false);
+
+          const handleNewPB = React.useCallback(() => {
+            setShowPBBanner(true);
+            setTimeout(() => setShowPBBanner(false), 3000);
+          }, []);
+
+          React.useEffect(() => {
+            if (scrambleDisplayRef.current) {
+              scrambleDisplayRef.current.setAttribute('scramble', scramble);
+            }
+          }, [scramble, state]);
+
+          React.useEffect(() => {
+            if (!scramble || typeof cubeSolver === 'undefined') return;
+            setXcrossLoading(true);
+            setXcrossSolutions([]);
+            setTimeout(() => {
+              const x2map = {
+                'U':'D','D':'U','F':'B','B':'F','L':'L','R':'R',
+                "U'":"D'","D'":"U'","F'":"B'","B'":"F'","L'":"L'","R'":"R'",
+                'U2':'D2','D2':'U2','F2':'B2','B2':'F2','L2':'L2','R2':'R2',
+              };
+              const ymap = {
+                'U':'U','D':'D','F':'R','R':'B','B':'L','L':'F',
+                "U'":"U'","D'":"D'","F'":"R'","R'":"B'","B'":"L'","L'":"F'",
+                'U2':'U2','D2':'D2','F2':'R2','R2':'B2','B2':'L2','L2':'F2',
+              };
+              const yimap = {
+                'U':'U','D':'D','F':'L','L':'B','B':'R','R':'F',
+                "U'":"U'","D'":"D'","F'":"L'","L'":"B'","B'":"R'","R'":"F'",
+                'U2':'U2','D2':'D2','F2':'L2','L2':'B2','B2':'R2','R2':'F2',
+              };
+              const y2map = {
+                'U':'U','D':'D','F':'B','B':'F','L':'R','R':'L',
+                "U'":"U'","D'":"D'","F'":"B'","B'":"F'","L'":"R'","R'":"L'",
+                'U2':'U2','D2':'D2','F2':'B2','B2':'F2','L2':'R2','R2':'L2',
+              };
+              const applyRotation = (moves, rotations) =>
+                moves.map(m => rotations.reduce((acc, map) => map[acc] || acc, m));
+              const orientations = [
+                // White on bottom
+                { prefix: 'x2 ',    label: '⬜🟦', rotations: [x2map] },
+                { prefix: 'x2 y ',  label: '⬜🟧', rotations: [x2map, ymap] },
+                { prefix: 'x2 y2 ', label: '⬜🟩', rotations: [x2map, y2map] },
+                { prefix: "x2 y' ", label: '⬜🟥', rotations: [x2map, yimap] },
+                // Yellow on bottom
+                { prefix: '',        label: '🟨🟩', rotations: [] },
+                { prefix: 'y ',      label: '🟨🟥', rotations: [yimap] },
+                { prefix: 'y2 ',     label: '🟨🟦', rotations: [y2map] },
+                { prefix: "y' ",     label: '🟨🟧', rotations: [ymap] },
+              ];
+              const allResults = [];
+              for (const { prefix, label, rotations } of orientations) {
+                try {
+                  const sol = cubeSolver.solve(prefix + scramble, 'xcross');
+                  if (sol) {
+                    const tokens = sol.trim().split(/\s+/).filter(t => !/^[xyz][2']?$/.test(t));
+                    const transformed = applyRotation(tokens, rotations);
+                    allResults.push({ label, solution: transformed.join(' '), moves: transformed.length });
+                  }
+                } catch (e) {}
+              }
+              const whiteBest = allResults.filter(r => r.label.startsWith('⬜')).sort((a, b) => a.moves - b.moves)[0];
+              const yellowBest = allResults.filter(r => r.label.startsWith('🟨')).sort((a, b) => a.moves - b.moves)[0];
+              setXcrossSolutions([whiteBest, yellowBest].filter(Boolean));
+              setXcrossLoading(false);
+            }, 0);
+          }, [scramble]);
 
           // New state for consecutive streak and sub-X rates
           const [subNThreshold, setSubNThreshold] = React.useState(10);
@@ -887,9 +982,11 @@ const TimeDistributionModal = ({ solves, onClose }) => {
                   return bestAvg === Infinity ? { value: 'N/A', solves: [], excludedSolves: [] } : { value: bestAvg.toFixed(2), solves: bestSolves, excludedSolves: bestExcludedSolves };
               };
 
-              const bestSingleSolve = solvesArray.reduce((minSolve, currentSolve) => 
-                (minSolve === null || currentSolve.time < minSolve.time) ? currentSolve : minSolve, null
-              );
+              const bestSingleSolve = solvesArray
+                .filter(s => s.penalty !== 'DNF')
+                .reduce((minSolve, currentSolve) =>
+                  (minSolve === null || getEffectiveTime(currentSolve) < getEffectiveTime(minSolve)) ? currentSolve : minSolve, null
+                );
               
               const singlePB = {
                   value: bestSingleSolve ? bestSingleSolve.time.toFixed(2) : 'N/A',
@@ -948,11 +1045,17 @@ const TimeDistributionModal = ({ solves, onClose }) => {
 
               const savedSubN = localStorage.getItem('subNThreshold');
               const savedSubX = localStorage.getItem('subXThreshold');
+              const savedDark = localStorage.getItem('isDarkMode');
+              const savedInspectionEnabled = localStorage.getItem('inspectionEnabled');
+              const savedInspectionDuration = localStorage.getItem('inspectionDuration');
 
               setSessions(savedSessions);
               setCurrentSession(savedCurrentSession);
               if (savedSubN) setSubNThreshold(Number(savedSubN));
               if (savedSubX) setSubXThreshold(Number(savedSubX));
+              if (savedDark !== null) setIsDarkMode(savedDark === '1');
+              if (savedInspectionEnabled !== null) setInspectionEnabled(savedInspectionEnabled === '1');
+              if (savedInspectionDuration) setInspectionDuration(Number(savedInspectionDuration));
               
             } catch (error) {
               console.error("Failed to load sessions or thresholds from local storage:", error);
@@ -970,6 +1073,8 @@ const TimeDistributionModal = ({ solves, onClose }) => {
               localStorage.setItem('csTimerCurrentSession', currentSession);
               localStorage.setItem('subNThreshold', subNThreshold);
               localStorage.setItem('subXThreshold', subXThreshold);
+              localStorage.setItem('inspectionEnabled', inspectionEnabled ? '1' : '0');
+              localStorage.setItem('inspectionDuration', inspectionDuration);
             } catch (error) {
               console.error("Failed to save sessions to local storage:", error);
             }
@@ -979,10 +1084,12 @@ const TimeDistributionModal = ({ solves, onClose }) => {
                 let overallBestId = null;
                 const pastPBs = [];
 
-                // Find the overall best time
-                const minTimeSolve = currentSolves.reduce((minSolve, currentSolve) => 
-                    (minSolve === null || currentSolve.time < minSolve.time) ? currentSolve : minSolve, null
-                );
+                // Find the overall best time (excluding DNFs)
+                const minTimeSolve = currentSolves
+                    .filter(s => s.penalty !== 'DNF')
+                    .reduce((minSolve, currentSolve) =>
+                        (minSolve === null || getEffectiveTime(currentSolve) < getEffectiveTime(minSolve)) ? currentSolve : minSolve, null
+                    );
                 if (minTimeSolve) {
                     overallBestId = minTimeSolve.id;
                 }
@@ -1025,18 +1132,57 @@ const TimeDistributionModal = ({ solves, onClose }) => {
           // Timer logic
           React.useEffect(() => {
             if (state === 'timing') {
-              console.log('Timer started.');
               timerIntervalRef.current = setInterval(() => {
                 setTime(((Date.now() - startTimeRef.current) / 1000));
               }, 10);
             }
             return () => {
               if (timerIntervalRef.current) {
-                console.log('Timer stopped.');
                 clearInterval(timerIntervalRef.current);
               }
             };
           }, [state]);
+
+          // Dark / light mode
+          React.useEffect(() => {
+            if (isDarkMode) {
+              document.documentElement.classList.remove('light-mode');
+            } else {
+              document.documentElement.classList.add('light-mode');
+            }
+            localStorage.setItem('isDarkMode', isDarkMode ? '1' : '0');
+          }, [isDarkMode]);
+
+          // Inspection timer countdown
+          React.useEffect(() => {
+            if (state === 'inspection') {
+              let elapsed = 0;
+              inspectionPenaltyRef.current = null;
+              inspectionIntervalRef.current = setInterval(() => {
+                elapsed += 0.1;
+                const tl = inspectionDuration - elapsed;
+                setInspectionTimeLeft(tl);
+                const rounded = Math.round(tl * 10) / 10;
+                if (rounded === 8 || rounded === 3) playBeep(880, 0.15);
+                if (tl <= 0 && inspectionPenaltyRef.current === null) {
+                  inspectionPenaltyRef.current = '+2';
+                  playBeep(440, 0.3);
+                }
+                if (tl <= -2 && inspectionPenaltyRef.current !== 'DNF') {
+                  inspectionPenaltyRef.current = 'DNF';
+                  playBeep(220, 0.5);
+                }
+              }, 100);
+            } else {
+              if (inspectionIntervalRef.current) {
+                clearInterval(inspectionIntervalRef.current);
+              }
+              if (state === 'idle') setInspectionTimeLeft(null);
+            }
+            return () => {
+              if (inspectionIntervalRef.current) clearInterval(inspectionIntervalRef.current);
+            };
+          }, [state, inspectionDuration]);
 
           // Handle keyboard events
           React.useEffect(() => {
@@ -1048,10 +1194,15 @@ const TimeDistributionModal = ({ solves, onClose }) => {
     if (e.code === 'Space') {
       e.preventDefault();
       if (state === 'idle') {
-        setState('ready');
-        holdTimerTimeoutRef.current = setTimeout(() => {
-          setIsHoldingLongEnough(true);
-        }, 300);
+        if (inspectionEnabled) {
+          setState('inspection');
+        } else {
+          setState('ready');
+          holdTimerTimeoutRef.current = setTimeout(() => setIsHoldingLongEnough(true), 300);
+        }
+      } else if (state === 'inspection') {
+        // Keep countdown running — just start the hold timer
+        holdTimerTimeoutRef.current = setTimeout(() => setIsHoldingLongEnough(true), 300);
       }
     }
 
@@ -1061,6 +1212,14 @@ const TimeDistributionModal = ({ solves, onClose }) => {
         setIsHoldingLongEnough(false);
         setState('idle');
         setTime(0);
+      } else if (state === 'inspection') {
+        inspectionPenaltyRef.current = null;
+        setState('idle');
+      } else if (state === 'timing') {
+        setState('idle');
+        setTime(0);
+        setShowPenaltyButtons(false);
+        // scramble is intentionally NOT changed so the user can retry the same scramble
       }
     }
 
@@ -1084,6 +1243,13 @@ const TimeDistributionModal = ({ solves, onClose }) => {
         setTime(0);
       }
       setIsHoldingLongEnough(false);
+    } else if (state === 'inspection') {
+      clearTimeout(holdTimerTimeoutRef.current);
+      if (isHoldingLongEnough) {
+        startTimer(); // countdown stops naturally when state → 'timing'
+      }
+      // released too early → stay in inspection, countdown keeps going
+      setIsHoldingLongEnough(false);
     } else if (state === 'timing') {
       stopTimer();
     }
@@ -1096,7 +1262,7 @@ const TimeDistributionModal = ({ solves, onClose }) => {
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('keyup', handleKeyUp);
   };
-}, [state, showDeleteConfirmId, isHoldingLongEnough]);
+}, [state, showDeleteConfirmId, isHoldingLongEnough, inspectionEnabled]);
 
 
 
@@ -1112,31 +1278,35 @@ const TimeDistributionModal = ({ solves, onClose }) => {
           const stopTimer = () => {
             try {
               const finalTime = ((Date.now() - startTimeRef.current) / 1000);
+              const inspPenalty = inspectionPenaltyRef.current;
+              inspectionPenaltyRef.current = null;
               const newSolve = {
                 id: Date.now(),
                 time: parseFloat(finalTime),
                 scramble: scramble,
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                ...(inspPenalty ? { penalty: inspPenalty } : {})
               };
               
-              // Find current best time
-              const currentBestTime = solves.length > 0 
-                ? Math.min(...solves.map(s => s.time)) 
+              // Find current best time (excluding DNFs)
+              const currentBestTime = solves.length > 0
+                ? Math.min(...solves.filter(s => s.penalty !== 'DNF').map(s => getEffectiveTime(s)))
                 : Infinity;
-              
+
               // Update solves
               setSessions(prevSessions => ({
                 ...prevSessions,
                 [currentSession]: [newSolve, ...(prevSessions[currentSession] || [])]
               }));
-              
+
               setScramble(generateScramble());
               setTime(parseFloat(finalTime));
               setState('idle');
+              setShowPenaltyButtons(true);
 
               // Check if this is a new PB and show banner if it is
               if (newSolve.time < currentBestTime) {
-                handleNewPB(); // This will trigger the banner with fade effect
+                handleNewPB();
               }
               
               console.log('Solve saved:', newSolve);
@@ -1146,6 +1316,16 @@ const TimeDistributionModal = ({ solves, onClose }) => {
           };
 
          
+
+          const handleRedoSolve = (solve) => {
+            setSessions(prevSessions => ({
+              ...prevSessions,
+              [currentSession]: (prevSessions[currentSession] || []).filter(s => s.id !== solve.id)
+            }));
+            setScramble(solve.scramble);
+            setTime(0);
+            setShowPenaltyButtons(false);
+          };
 
           const handleDeleteClick = (id) => {
             setShowDeleteConfirmId(id);
@@ -1161,6 +1341,41 @@ const TimeDistributionModal = ({ solves, onClose }) => {
 
           const cancelDelete = () => {
             setShowDeleteConfirmId(null);
+          };
+
+          const applyPenalty = (penalty) => {
+            setSessions(prev => ({
+              ...prev,
+              [currentSession]: prev[currentSession].map((s, i) =>
+                i === 0 ? { ...s, penalty } : s
+              )
+            }));
+            setShowPenaltyButtons(false);
+          };
+
+          const exportToCSV = () => {
+            const headers = ['#', 'Time (s)', 'Penalty', 'Effective Time', 'Scramble', 'Date'];
+            const rows = [...solves].reverse().map((solve, i) => {
+              const eff = solve.penalty === 'DNF' ? 'DNF' : getEffectiveTime(solve).toFixed(3);
+              return [
+                i + 1,
+                solve.time.toFixed(3),
+                solve.penalty || '',
+                eff,
+                `"${(solve.scramble || '').replace(/"/g, '""')}"`,
+                solve.date
+              ].join(',');
+            });
+            const csv = [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentSession}_solves_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
           };
 
           const handleShowPBDetails = (type) => {
@@ -1237,8 +1452,23 @@ const TimeDistributionModal = ({ solves, onClose }) => {
           let timerColorClass = 'text-white';
           let instructionText = '';
           let displayedTime = time.toFixed(2);
-          
-          if (state === 'ready' && !isHoldingLongEnough) {
+
+          if (state === 'inspection') {
+            const tl = inspectionTimeLeft ?? inspectionDuration;
+            displayedTime = tl > 0 ? Math.ceil(tl).toString() : (tl > -2 ? '+2' : 'DNF');
+            if (isHoldingLongEnough) {
+              timerColorClass = 'text-green-500';
+              instructionText = 'Release to start!';
+            } else {
+              if (tl > 8)       timerColorClass = 'text-white';
+              else if (tl > 3)  timerColorClass = 'text-yellow-400';
+              else if (tl > 0)  timerColorClass = 'text-red-500';
+              else              timerColorClass = 'text-red-600';
+              instructionText = tl > 0
+                ? 'Hold SPACE to start.'
+                : (tl > -2 ? 'Inspection over — start or get +2!' : 'DNF');
+            }
+          } else if (state === 'ready' && !isHoldingLongEnough) {
             timerColorClass = 'text-red-500';
             instructionText = 'Hold SPACE to start.';
             displayedTime = "0.00";
@@ -1250,12 +1480,12 @@ const TimeDistributionModal = ({ solves, onClose }) => {
             timerColorClass = 'text-blue-500';
           } else {
             // idle state
-            instructionText = 'Press SPACE to start.';
-if (showPBBanner) {
-  timerColorClass = 'pb-gradient pb-glow';
-} else {
-  timerColorClass = 'text-white';
-}
+            instructionText = inspectionEnabled ? 'Press SPACE to inspect.' : 'Press SPACE to start.';
+            if (showPBBanner) {
+              timerColorClass = 'pb-gradient pb-glow';
+            } else {
+              timerColorClass = 'text-white';
+            }
           }
 
           const totalSeconds = solves.reduce((acc, solve) => acc + solve.time, 0);
@@ -1263,10 +1493,35 @@ if (showPBBanner) {
 
           const sortedSolves = getSortedSolves();
 
-          const shouldShowFullUI = state === 'idle' || (state === 'ready' && !isHoldingLongEnough);
+          const shouldShowFullUI = state === 'idle' || state === 'inspection' || (state === 'ready' && !isHoldingLongEnough);
 
           return (
-            <div className="flex justify-center items-center h-screen bg-slate-800 p-4 font-inter text-white">
+            <div className="flex justify-center items-center h-screen bg-slate-800 p-4 font-inter text-white"
+              onTouchStart={(e) => {
+                if (e.target.closest('button, input, a')) return;
+                e.preventDefault();
+                if (state === 'idle') {
+                  setState('ready');
+                  holdTimerTimeoutRef.current = setTimeout(() => setIsHoldingLongEnough(true), 300);
+                }
+              }}
+              onTouchEnd={(e) => {
+                if (e.target.closest('button, input, a')) return;
+                e.preventDefault();
+                if (state === 'ready') {
+                  clearTimeout(holdTimerTimeoutRef.current);
+                  if (isHoldingLongEnough) {
+                    startTimer();
+                  } else {
+                    setState('idle');
+                    setTime(0);
+                  }
+                  setIsHoldingLongEnough(false);
+                } else if (state === 'timing') {
+                  stopTimer();
+                }
+              }}
+            >
               {/* Main UI */}
               {shouldShowFullUI && (
                 <div className="flex w-full max-w-8xl space-x-6 h-full items-stretch">
@@ -1312,12 +1567,19 @@ if (showPBBanner) {
                               </div>
                           ))}
                       </div>
-                      <div className="flex-none text-center mb-2">
+                      <div className="flex-none text-center mb-2 space-y-2">
                           <button
                               onClick={() => setSortOrder(sortOrder === 'newest' ? 'best' : 'newest')}
                               className="text-sm w-full px-2 py-1 rounded-full bg-slate-700 hover:bg-slate-600 transition-colors"
                           >
                               {sortOrder === 'newest' ? 'Sort by Speed' : 'Sort by Newest'}
+                          </button>
+                          <button
+                              onClick={exportToCSV}
+                              disabled={solves.length === 0}
+                              className="text-sm w-full px-2 py-1 rounded-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          >
+                              Export TXT
                           </button>
                       </div>
                     </div>
@@ -1348,9 +1610,20 @@ if (showPBBanner) {
                             >
                               <div className="flex items-center"
                                 onClick={() => setVisibleScrambleId(visibleScrambleId === solve.id ? null : solve.id)}>
-                                <span>#{solveDisplayIndex}: {solve.time.toFixed(2)}s</span>
+                                <span>#{solveDisplayIndex}: {
+                                  solve.penalty === 'DNF'
+                                    ? 'DNF'
+                                    : `${getEffectiveTime(solve).toFixed(2)}s${solve.penalty === '+2' ? ' (+2)' : ''}`
+                                }</span>
                                 <div className="flex items-center space-x-2 ml-auto">
                                   {badge}
+                                  <button
+                                    className="text-blue-400 hover:text-blue-300 font-bold text-sm"
+                                    title="Redo this scramble"
+                                    onClick={(e) => { e.stopPropagation(); handleRedoSolve(solve); }}
+                                  >
+                                    ↺
+                                  </button>
                                   <button
                                     className="text-red-400 hover:text-red-500 font-bold text-sm"
                                     onClick={(e) => { e.stopPropagation(); handleDeleteClick(solve.id); }}
@@ -1373,7 +1646,7 @@ if (showPBBanner) {
                   </div>
 
                   {/* Main Content Area (centered) */}
-                  <div className="bg-slate-900 p-8 rounded-xl shadow-xl flex-1 flex flex-col justify-center items-center relative">
+                  <div className="bg-slate-900 p-4 rounded-xl shadow-xl flex-1 flex flex-col justify-center items-center relative overflow-hidden">
                     {/* New PB Banner */}
                     {/* New PB Banner */}
                       {showPBBanner && (
@@ -1385,37 +1658,73 @@ if (showPBBanner) {
                         </div>
                       )}
 
-                    <div className="flex-none text-3xl font-bold mb-8 text-center">Cube Timer</div>
-                    <div className="flex-1 flex flex-col justify-center items-center">
-                      <div className="flex flex-col items-center mb-8">
-                        <p className="text-5xl tracking-wide whitespace-pre-wrap break-words text-center mb-4">{scramble}</p>
-                        <button
-                          onClick={() => setScramble(generateScramble())}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-                        >
-                          New Scramble
-                        </button>
+                    <div className="flex-none flex items-center justify-center gap-3 mb-1">
+                      <span className="text-2xl font-bold">Cube Timer</span>
+                      <button
+                        onClick={() => setIsDarkMode(v => !v)}
+                        className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm transition-colors"
+                        title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                      >
+                        {isDarkMode ? '☀' : '☾'}
+                      </button>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col justify-center items-center w-full">
+                      <div className="flex flex-col items-center mb-2">
+                        <p className="text-5xl tracking-wide whitespace-pre-wrap break-words text-center mb-2">{scramble}</p>
+                        <div className="flex items-center gap-6 mt-1">
+                          <scramble-display ref={scrambleDisplayRef} puzzle="3x3x3" visualization="2D" style={{ display: 'block', width: '280px', height: '190px' }}></scramble-display>
+                          <div className="flex flex-col items-start min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-0.5">X-Cross · Best ⬜ &amp; 🟨</p>
+                            <p className="text-xs text-slate-500 mb-2">emoji = bottom · front face</p>
+                            {xcrossLoading ? (
+                              <p className="text-sm text-slate-400 italic">Calculating...</p>
+                            ) : xcrossSolutions.length === 0 ? (
+                              <p className="text-sm text-slate-400">—</p>
+                            ) : xcrossSolutions.map((r, i) => (
+                              <div key={i} className="flex items-baseline gap-2 mb-1.5">
+                                <span className="text-sm font-mono font-bold w-10 shrink-0">{r.label}</span>
+                                <span className="text-xs text-slate-500 w-5 shrink-0">{r.moves}m</span>
+                                <span className="text-sm font-mono text-green-400 break-all">{r.solution}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setScramble(generateScramble())}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-400 font-bold rounded-lg transition-all shadow-sm self-center"
+                          >
+                            New Scramble
+                          </button>
+                        </div>
                       </div>
-                      <h2 className={`text-[10rem] md:text-[14rem] leading-none font-bold transition-colors duration-200 ${timerColorClass}`}>
+                      <h2 className={`text-[8rem] md:text-[11rem] leading-none font-bold transition-colors duration-200 ${timerColorClass}`}>
                         {displayedTime}
                       </h2>
-                      <div className="h-8 flex items-center justify-center">
+                      <div className="h-6 flex items-center justify-center">
                         <p className="text-2xl font-medium">{instructionText}</p>
                       </div>
-                      <div className="flex flex-col items-center mt-4 space-y-4">
-                        <div className="flex justify-center space-x-10">
-                          <p className={`text-6xl font-semibold`}>Ao5: {getAverage(solves, 5).value}</p>
-                          <p className={`text-6xl font-semibold`}>Ao12: {getAverage(solves, 12).value}</p>
+                      {showPenaltyButtons && state === 'idle' && (
+                        <div className="flex space-x-3 mt-2 mb-1">
+                          <button onClick={() => applyPenalty('+2')} className="px-5 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold text-white text-lg transition-colors">+2</button>
+                          <button onClick={() => applyPenalty('DNF')} className="px-5 py-2 bg-red-700 hover:bg-red-600 rounded-lg font-bold text-white text-lg transition-colors">DNF</button>
+                          <button onClick={() => setShowPenaltyButtons(false)} className="px-5 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-white text-lg transition-colors">OK</button>
                         </div>
-                        <div className="flex flex-wrap justify-center space-x-4 text-xl text-slate-400">
-                          <p>Ao100: <span className="text-3xl font-semibold">{getAverage(solves, 100).value}</span></p>
-                          <p>Ao1000: <span className="text-3xl font-semibold">{getAverage(solves, 1000).value}</span></p>
-                          <p>Ao10000: <span className="text-3xl font-semibold">{getAverage(solves, 10000).value}</span></p>
+                      )}
+                      <div className="flex flex-col items-center mt-1 space-y-1">
+                        <div className="flex justify-center space-x-10">
+                          <p className={`text-5xl font-semibold`}>Ao5: {getAverage(solves, 5).value}</p>
+                          <p className={`text-5xl font-semibold`}>Ao12: {getAverage(solves, 12).value}</p>
+                        </div>
+                        <div className="flex flex-wrap justify-center space-x-4 text-base text-slate-400">
+                          <p>Ao100: <span className="text-2xl font-semibold">{getAverage(solves, 100).value}</span></p>
+                          <p>Ao1000: <span className="text-2xl font-semibold">{getAverage(solves, 1000).value}</span></p>
+                          <p>Ao10000: <span className="text-2xl font-semibold">{getAverage(solves, 10000).value}</span></p>
                         </div>
                       </div>
                     </div>
                     <div className="flex-none text-right text-base text-slate-400 absolute bottom-4 right-4">
-                      <p>Last solve: {solves.length > 0 ? solves[0].time.toFixed(2) : 'N/A'}</p>
+                      <p>Last solve: {solves.length > 0
+                        ? (solves[0].penalty === 'DNF' ? 'DNF' : `${getEffectiveTime(solves[0]).toFixed(2)}s${solves[0].penalty === '+2' ? ' (+2)' : ''}`)
+                        : 'N/A'}</p>
                     </div>
                   </div>
 
@@ -1423,6 +1732,33 @@ if (showPBBanner) {
                   <div className="bg-slate-900 p-6 rounded-xl shadow-xl flex flex-col w-64 max-h-full overflow-y-auto no-scrollbar">
                       <h4 className="text-2xl font-bold text-center mb-4">Advanced Stats</h4>
                       <div className="space-y-6">
+                          {/* Inspection Timer */}
+                          <div className="flex flex-col p-2 bg-slate-800 rounded-lg text-sm">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm text-slate-400">Inspection Timer</span>
+                              <button
+                                onClick={() => setInspectionEnabled(v => !v)}
+                                className={`relative w-10 h-5 rounded-full transition-colors ${inspectionEnabled ? 'bg-blue-500' : 'bg-slate-600'}`}
+                              >
+                                <span className={`toggle-thumb absolute top-0.5 w-4 h-4 rounded-full bg-white shadow ${inspectionEnabled ? 'left-5' : 'left-0.5'}`}></span>
+                              </button>
+                            </div>
+                            {inspectionEnabled && (
+                              <div className="flex items-center space-x-2 mt-1">
+                                <label className="text-xs text-slate-400">Duration</label>
+                                <input
+                                  type="number"
+                                  value={inspectionDuration}
+                                  min="1" max="60"
+                                  onChange={(e) => setInspectionDuration(Number(e.target.value))}
+                                  className="w-14 bg-slate-700 text-white text-center rounded-md p-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span className="text-xs text-slate-400">s</span>
+                                <span className="text-xs text-slate-500">(beeps at 8s &amp; 3s)</span>
+                              </div>
+                            )}
+                          </div>
+
                           {/* Consecutive sub-N section */}
                           <div className="flex flex-col items-center p-2 bg-slate-800 rounded-lg text-sm">
                               <div className="flex items-center space-x-2">
@@ -1466,7 +1802,7 @@ if (showPBBanner) {
                               className="flex flex-col items-center p-4 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors"
                           >
                               <h5 className="text-xl font-bold mb-2">Time Progression</h5>
-                              <TimeProgressionGraph solves={solves} />
+                              <TimeProgressionGraph solves={solves} isDark={isDarkMode} />
                           </div>
 
                           {/* Time Distribution */}
@@ -1700,7 +2036,7 @@ if (showPBBanner) {
               
               
               <PBDetailsModal pbDetails={pbDetails} onClose={handleClosePBDetails} />
-              {showGraphModal && <GraphModal solves={solves} onClose={handleCloseGraphModal} />}
+              {showGraphModal && <GraphModal solves={solves} onClose={handleCloseGraphModal} isDark={isDarkMode} />}
               {showDailyModal && <DailySolvesModal solves={solves} onClose={() => setShowDailyModal(false)} />}
                 {showTimeModal && (<TimeDistributionModal solves={solves} onClose={() => setShowTimeModal(false)}
   />
